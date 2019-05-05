@@ -1,0 +1,262 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <stdbool.h>
+#define Input 20
+#define ArrayMax 400
+
+int myArray[ArrayMax] = { 0 };
+/*
+ * Structure to hold the id, weight and pointer to next node
+ */
+typedef struct nodes {
+	int id;
+	int weight;
+	struct nodes* next;
+} NODE;
+/*
+ * structure to hold the head pointers of the list
+ */
+typedef struct adjList {
+	struct nodes *head;
+} LIST;
+/*
+ * structure to hold the array of adjacency lists
+ */
+typedef struct graph {
+	struct adjList* array;
+} GRAPH;
+/*
+ * structure for minimum heap node
+ */
+struct heapNode {
+	int key;
+	int id;
+	bool inMinHeap;
+};
+/*
+ * structure to hold the minHeap
+ */
+struct minHeap {
+	int countNodes;    //nodes in MinHeap
+	int sizeOfArray;   //Total size of MinHeap initially
+	int* index;
+	struct heapNode** arr;
+};
+/*
+ * this method restores the minimum heap
+ * property at index loc
+ * assuming the heap follows min heap property
+ *
+ */
+void minHeapify(struct minHeap* heap, int loc) {
+	int smallest = 0;
+	int l = (loc * 2) + 1;   // because array starts from 0 and not 1
+	int r = (loc * 2) + 2;
+
+	if ((l < heap->countNodes) && (heap->arr[l]->key < heap->arr[loc]->key)) {
+		smallest = l;
+	} else {
+		smallest = loc;
+	}
+	if ((r < heap->countNodes)
+			&& (heap->arr[r]->key < heap->arr[smallest]->key)) {
+		smallest = r;
+	}
+	if (smallest != loc) {
+		//update index of node in minHeap
+		int s = heap->arr[smallest]->id;
+		int t = heap->arr[loc]->id;
+		heap->index[s] = loc;
+		heap->index[t] = smallest;
+
+		//swap nodes
+		struct heapNode* temp = heap->arr[smallest];
+		heap->arr[smallest] = heap->arr[loc];
+		heap->arr[loc] = temp;
+		minHeapify(heap, smallest);
+	}
+}
+/*
+ * method to update the value of the key for a
+ * given node and restoring the min-heap property
+ * after decreasing the value of the key of the node
+ */
+void decreaseKey(struct minHeap* heap, int id, int key) {
+	int loc = heap->index[id];
+	//printf("inside");
+	//printf("heap->countNodes %d loc %d",heap->countNodes, loc);
+	if (loc > heap->countNodes) {
+		printf("node not present");
+	}
+	heap->arr[loc]->key = key;
+	while (loc && heap->arr[loc]->key < heap->arr[(loc - 1) / 2]->key) {
+		//	printf("%d Id: \t %d key",heap->arr[loc]->id,heap->arr[loc]->key );
+		heap->index[heap->arr[loc]->id] = (loc - 1) / 2;
+		heap->index[heap->arr[(loc - 1) / 2]->id] = loc;
+		struct heapNode* temp = heap->arr[loc];
+		heap->arr[loc] = heap->arr[(loc - 1) / 2];
+		heap->arr[(loc - 1) / 2] = temp;
+		loc = (loc - 1) / 2;
+	}
+}
+/*
+ * method to read node from the input file and
+ * store them in an array
+ */
+void readfile() {
+	char path[] = "graph_info.txt";   //address of the input file
+	FILE *fp;
+	int number = 0;
+	fp = fopen(path, "r");
+
+	int counter = 0;
+
+	while (counter < ArrayMax) {
+		if (fscanf(fp, "%d", &number) == 1) {
+			myArray[counter] = number;
+			counter++;
+
+		} else {
+			printf("file not opened");
+		}
+	}
+}
+/*
+ * method to print the adjacency list
+ */
+void printAdjList(struct graph* G) {
+	printf("\nHeadNode  Adjacency List Node[weight id]--->      ");
+	for (int i = 0; i < Input; i++) {
+		printf("\n");
+		while (G->array[i].head != NULL) {
+			printf("-->[%d %d] ", G->array[i].head->weight,
+					G->array[i].head->id);
+			G->array[i].head = G->array[i].head->next;
+		}
+	}
+}
+/*
+ * Removes the first node of the MinHeap and
+ * replaces it with the last node from the MinHeap
+ * updates the number of nodes in MinHeap
+ * and returns the minimum node
+ */
+struct heapNode* extractMinimum(struct minHeap* heap) {
+	if (heap->countNodes == 0) {
+		printf("heap underflows");
+		return NULL;
+	}
+	//store last node in first node of minHeap
+	struct heapNode* minNode = heap->arr[0];
+	heap->arr[0] = heap->arr[heap->countNodes - 1];
+
+	//updating index of first and last nodes in minHeap array
+	heap->index[minNode->id] = heap->countNodes - 1;
+	heap->index[heap->arr[heap->countNodes - 1]->id] = 0;
+
+	heap->countNodes = heap->countNodes - 1;
+	// printf("first node before swap id %d key %d\n",minNode->id,minNode->key);
+	//printf("Last node after swap id %d key %d\n",lastNode->id,lastNode->key);
+
+	minHeapify(heap, 0);
+	return minNode;
+}
+/*
+ * Method for creating the minimum spanning tree
+ * Also, calculates the weight of the MST
+ */
+void mst(struct graph* G) {
+	int pred[Input];
+	int keyWeights[Input];
+	int max = 300000;
+
+	for (int i = 0; i < Input; i++) {
+		pred[i] = 0;
+		keyWeights[i] = max;
+	}
+	//create heap
+	struct minHeap* h = (struct minHeap*) malloc(sizeof(struct minHeap));
+	h->sizeOfArray = Input;
+	h->index = (int*) malloc(Input * (sizeof(int)));
+	h->countNodes = Input;
+	h->arr = (struct heapNode**) malloc(Input * (sizeof(struct heapNode*)));
+
+	for (int i = 0; i < Input; i++) {
+		struct heapNode* Hnode = (struct heapNode*) malloc(
+				sizeof(struct heapNode));
+		Hnode->id = i;
+		Hnode->key = max;
+		Hnode->inMinHeap = true;
+		h->arr[i] = Hnode;
+		h->index[i] = i;
+	}
+
+	keyWeights[0] = 0;
+	h->arr[0]->key = 0;
+
+	while (h->countNodes > 0) {
+		struct heapNode* node = extractMinimum(h);
+		//printf("MINIMUM Hmin node ID:%d key:%d\n", node->id, node->key);
+		struct nodes* graphNode = G->array[node->id].head;
+		while (graphNode != NULL) {
+			int pos =h->index[graphNode->id];
+			if (pos<h->countNodes && graphNode->weight < keyWeights[graphNode->id]) {
+				keyWeights[graphNode->id] = graphNode->weight;
+				pred[graphNode->id] = node->id;
+				/*printf("Neighbor id: %d weight: %d\n", pred[graphNode->id],
+						keyWeights[graphNode->id]);*/
+				decreaseKey(h, graphNode->id, keyWeights[graphNode->id]);
+			}
+			graphNode = graphNode->next;
+		}
+	}
+
+	int cost = 0;
+	printf("Weight-> Node-> Parent->\n");
+	for (int i = 0; i < Input; i++) {
+		cost = cost + keyWeights[i];
+		printf("%d \t  %d    %d \n", keyWeights[i], i, pred[i]);
+
+	}
+	printf("COST %d\t", cost);
+
+}
+int main() {
+	readfile();
+
+	struct graph* G = malloc(sizeof(GRAPH));
+	G->array = malloc(sizeof(LIST[Input + 1]));
+
+	for (int i = 0; i < Input; i++) {
+		G->array[i].head = NULL;
+	}
+
+	int Headcount = 0;
+	int mycount = 0;
+
+	for (int i = 0; i < Input; i++) {
+		struct nodes *Hnode = (struct nodes*) malloc(sizeof(NODE));
+		Hnode->id = Headcount;
+		Hnode->weight = 999;
+		Hnode->next = NULL;
+		G->array[i].head = Hnode;
+
+		mycount = 0;
+		for (int j = Input * i; j < (Input * i) + Input; j++) {
+			if (myArray[j] != 999) {
+				struct nodes *Adjnode = (struct nodes*) malloc(sizeof(NODE));
+				Adjnode->id = mycount;
+				Adjnode->weight = myArray[j];
+				Adjnode->next = G->array[i].head->next;
+				G->array[i].head->next = Adjnode;
+			}
+			mycount++;
+		}
+		Headcount++;
+	}
+	mst(G);
+	printAdjList(G);
+	return 0;
+
+}
